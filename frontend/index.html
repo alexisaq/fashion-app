@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clasificador de Ropa</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+    }
+    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.25rem; color: #111; }
+    .subtitle { font-size: 0.875rem; color: #666; margin-bottom: 1.5rem; }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .tab {
+      flex: 1;
+      padding: 0.5rem;
+      text-align: center;
+      font-size: 0.875rem;
+      cursor: pointer;
+      background: white;
+      border: none;
+      color: #666;
+      transition: all 0.15s;
+    }
+    .tab.active { background: #111; color: white; font-weight: 500; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .canvas-wrapper {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    canvas {
+      border: 2px solid #e0e0e0; border-radius: 8px;
+      cursor: crosshair; touch-action: none; image-rendering: pixelated;
+    }
+    .canvas-hint { font-size: 0.8rem; color: #999; }
+    .brush-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1rem; font-size: 0.85rem; color: #555;
+    }
+    input[type=range] { flex: 1; }
+
+    .upload-area {
+      border: 2px dashed #e0e0e0;
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+    .upload-area:hover, .upload-area.dragover {
+      border-color: #111; background: #fafafa;
+    }
+    .upload-area input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .upload-text { font-size: 0.9rem; color: #444; margin-bottom: 0.25rem; }
+    .upload-hint { font-size: 0.75rem; color: #999; }
+
+    .preview-wrapper {
+      display: none; flex-direction: column;
+      align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;
+    }
+    .preview-wrapper.visible { display: flex; }
+    .preview-wrapper img {
+      width: 200px; height: 200px;
+      object-fit: contain; border-radius: 8px;
+      border: 2px solid #e0e0e0; background: black;
+      image-rendering: pixelated;
+    }
+    .change-btn {
+      font-size: 0.8rem; color: #666; background: none;
+      border: 1px solid #e0e0e0; border-radius: 6px;
+      padding: 0.3rem 0.75rem; cursor: pointer;
+    }
+    .change-btn:hover { background: #f5f5f5; }
+
+    .controls { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
+    button.primary {
+      flex: 1; padding: 0.6rem 1rem; border-radius: 8px;
+      border: none; font-size: 0.9rem; font-weight: 500;
+      cursor: pointer; transition: opacity 0.15s;
+      background: #111; color: white;
+    }
+    button.secondary {
+      flex: 1; padding: 0.6rem 1rem; border-radius: 8px;
+      border: none; font-size: 0.9rem; font-weight: 500;
+      cursor: pointer; transition: opacity 0.15s;
+      background: #f0f0f0; color: #333;
+    }
+    button:hover { opacity: 0.85; }
+
+    .result-box { background: #f8f8f8; border-radius: 10px; padding: 1.25rem; display: none; }
+    .result-box.visible { display: block; }
+    .result-label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+    .result-main { font-size: 1.6rem; font-weight: 700; color: #111; margin-bottom: 0.1rem; }
+    .result-conf { font-size: 0.9rem; color: #555; margin-bottom: 1rem; }
+    .top3 { display: flex; flex-direction: column; gap: 0.5rem; }
+    .bar-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+    .bar-name { width: 110px; color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { flex: 1; background: #e8e8e8; border-radius: 4px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #111; border-radius: 4px; transition: width 0.4s ease; }
+    .bar-pct { width: 38px; text-align: right; color: #666; }
+    .loading { text-align: center; color: #888; font-size: 0.9rem; padding: 1rem 0; display: none; }
+    .error { color: #cc0000; font-size: 0.85rem; margin-top: 0.5rem; display: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Clasificador de ropa</h1>
+  <p class="subtitle">Dibuja una prenda o sube una imagen para clasificar</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('draw')">Dibujar</button>
+    <button class="tab" onclick="switchTab('upload')">Subir imagen</button>
+  </div>
+
+  <div id="panel-draw" class="panel active">
+    <div class="canvas-wrapper">
+      <canvas id="canvas" width="280" height="280"></canvas>
+      <span class="canvas-hint">Dibuja con el mouse o el dedo</span>
+    </div>
+    <div class="brush-row">
+      <span>Grosor</span>
+      <input type="range" id="brush" min="8" max="40" value="18">
+      <span id="brush-val">18px</span>
+    </div>
+    <div class="controls">
+      <button class="secondary" onclick="clearCanvas()">Limpiar</button>
+      <button class="primary" onclick="predictDraw()">Clasificar</button>
+    </div>
+  </div>
+
+  <div id="panel-upload" class="panel">
+    <div class="upload-area" id="upload-area">
+      <input type="file" id="file-input" accept="image/*" onchange="handleFile(this.files[0])">
+      <div class="upload-icon">+</div>
+      <div class="upload-text">Haz clic o arrastra una imagen aquí</div>
+      <div class="upload-hint">PNG, JPG, BMP — se convertirá a 28×28 automáticamente</div>
+    </div>
+    <div class="preview-wrapper" id="preview-wrapper">
+      <img id="preview-img" src="" alt="Vista previa">
+      <button class="change-btn" onclick="resetUpload()">Cambiar imagen</button>
+    </div>
+    <div class="controls">
+      <button class="primary" onclick="predictUpload()">Clasificar</button>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">Analizando...</div>
+  <div class="error" id="error-msg"></div>
+
+  <div class="result-box" id="result-box">
+    <div class="result-label">Predicción</div>
+    <div class="result-main" id="res-name">—</div>
+    <div class="result-conf" id="res-conf">—</div>
+    <div class="top3" id="top3"></div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:8000';
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  let brushSize = 18;
+  let uploadedPixels = null;
+
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, 280, 280);
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'draw')));
+    document.getElementById('panel-draw').classList.toggle('active', tab === 'draw');
+    document.getElementById('panel-upload').classList.toggle('active', tab === 'upload');
+    hideResult();
+  }
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+
+  canvas.addEventListener('mousedown',  e => { drawing = true; draw(e); });
+  canvas.addEventListener('mousemove',  e => { if (drawing) draw(e); });
+  canvas.addEventListener('mouseup',    () => drawing = false);
+  canvas.addEventListener('mouseleave', () => drawing = false);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; draw(e); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (drawing) draw(e); }, { passive: false });
+  canvas.addEventListener('touchend',   () => drawing = false);
+
+  function draw(e) {
+    const { x, y } = getPos(e);
+    ctx.beginPath();
+    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+  }
+
+  document.getElementById('brush').addEventListener('input', function() {
+    brushSize = +this.value;
+    document.getElementById('brush-val').textContent = brushSize + 'px';
+  });
+
+  function clearCanvas() {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, 280, 280);
+    hideResult();
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const off = document.createElement('canvas');
+        off.width = 28; off.height = 28;
+        const octx = off.getContext('2d');
+        octx.fillStyle = 'black';
+        octx.fillRect(0, 0, 28, 28);
+        octx.drawImage(img, 0, 0, 28, 28);
+        const data = octx.getImageData(0, 0, 28, 28).data;
+        uploadedPixels = [];
+        for (let i = 0; i < data.length; i += 4) {
+          uploadedPixels.push((data[i] + data[i+1] + data[i+2]) / 3);
+        }
+        document.getElementById('preview-img').src = e.target.result;
+        document.getElementById('upload-area').style.display = 'none';
+        document.getElementById('preview-wrapper').classList.add('visible');
+        hideResult();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const uploadArea = document.getElementById('upload-area');
+  uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    handleFile(e.dataTransfer.files[0]);
+  });
+
+  function resetUpload() {
+    uploadedPixels = null;
+    document.getElementById('file-input').value = '';
+    document.getElementById('upload-area').style.display = 'block';
+    document.getElementById('preview-wrapper').classList.remove('visible');
+    hideResult();
+  }
+
+  async function predictDraw() {
+    const off = document.createElement('canvas');
+    off.width = 28; off.height = 28;
+    const octx = off.getContext('2d');
+    octx.drawImage(canvas, 0, 0, 28, 28);
+    const data = octx.getImageData(0, 0, 28, 28).data;
+    const pixels = [];
+    for (let i = 0; i < data.length; i += 4) pixels.push(data[i]);
+    await sendPrediction(pixels);
+  }
+
+  async function predictUpload() {
+    if (!uploadedPixels) {
+      document.getElementById('error-msg').textContent = 'Primero sube una imagen.';
+      document.getElementById('error-msg').style.display = 'block';
+      return;
+    }
+    await sendPrediction(uploadedPixels);
+  }
+
+  async function sendPrediction(pixels) {
+    document.getElementById('loading').style.display = 'block';
+    hideResult();
+    try {
+      const res = await fetch(`${API}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pixels })
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      document.getElementById('res-name').textContent = data.prediccion;
+      document.getElementById('res-conf').textContent = `Confianza: ${data.confianza}%`;
+      document.getElementById('top3').innerHTML = data.top3.map(item => `
+        <div class="bar-row">
+          <span class="bar-name">${item.clase}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${item.confianza}%"></div></div>
+          <span class="bar-pct">${item.confianza}%</span>
+        </div>
+      `).join('');
+      document.getElementById('result-box').classList.add('visible');
+    } catch {
+      document.getElementById('error-msg').textContent = 'No se pudo conectar al backend.';
+      document.getElementById('error-msg').style.display = 'block';
+    } finally {
+      document.getElementById('loading').style.display = 'none';
+    }
+  }
+
+  function hideResult() {
+    document.getElementById('result-box').classList.remove('visible');
+    document.getElementById('error-msg').style.display = 'none';
+  }
+</script>
+</body>
+</html>
